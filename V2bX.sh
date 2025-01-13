@@ -26,6 +26,8 @@ elif cat /proc/version | grep -Eqi "ubuntu"; then
     release="ubuntu"
 elif cat /proc/version | grep -Eqi "centos|red hat|redhat|rocky|alma|oracle linux"; then
     release="centos"
+elif cat /proc/version | grep -Eqi "arch"; then
+    release="arch"
 else
     echo -e "${red}未检测到系统版本，请联系脚本作者！${plain}\n" && exit 1
 fi
@@ -424,28 +426,33 @@ add_node_config() {
             * ) NodeType="shadowsocks" ;;
         esac
     fi
-    if [ $NodeType == "vless" ]; then
+
+    if [ "$NodeType" == "vless" ]; then
         read -rp "请选择是否为reality节点？(y/n)" isreality
+    elif [ "$NodeType" == "hysteria2" ]; then
+        istls="y"
     fi
+
+    if [[ "$isreality" != "y" && "$isreality" != "Y" &&  "$istls" != "y" ]]; then
+        read -rp "请选择是否进行TLS配置？(y/n)" istls
+    fi
+
     certmode="none"
     certdomain="example.com"
-    if [ "$isreality" != "y" ] && [ "$isreality" != "Y" ]; then
-        read -rp "请选择是否进行TLS配置？(y/n)" istls
-        if [ "$istls" == "y" ] || [ "$istls" == "Y" ]; then
-            echo -e "${yellow}请选择证书申请模式：${plain}"
-            echo -e "${green}1. http模式自动申请，节点域名已正确解析${plain}"
-            echo -e "${green}2. dns模式自动申请，需填入正确域名服务商API参数${plain}"
-            echo -e "${green}3. self模式，自签证书或提供已有证书文件${plain}"
-            read -rp "请输入：" certmode
-            case "$certmode" in
-                1 ) certmode="http" ;;
-                2 ) certmode="dns" ;;
-                3 ) certmode="self" ;;
-            esac
-            read -rp "请输入节点证书域名(example.com)]：" certdomain
-            if [ $certmode != "http" ]; then
-                echo -e "${red}请手动修改配置文件后重启V2bX！${plain}"
-            fi
+    if [[ "$isreality" != "y" && "$isreality" != "Y" && ( "$istls" == "y" || "$istls" == "Y" ) ]]; then
+        echo -e "${yellow}请选择证书申请模式：${plain}"
+        echo -e "${green}1. http模式自动申请，节点域名已正确解析${plain}"
+        echo -e "${green}2. dns模式自动申请，需填入正确域名服务商API参数${plain}"
+        echo -e "${green}3. self模式，自签证书或提供已有证书文件${plain}"
+        read -rp "请输入：" certmode
+        case "$certmode" in
+            1 ) certmode="http" ;;
+            2 ) certmode="dns" ;;
+            3 ) certmode="self" ;;
+        esac
+        read -rp "请输入节点证书域名(example.com)]：" certdomain
+        if [ "$certmode" != "http" ]; then
+            echo -e "${red}请手动修改配置文件后重启V2bX！${plain}"
         fi
     fi
     ipv6_support=$(check_ipv6_support)
@@ -465,7 +472,7 @@ add_node_config() {
             "Timeout": 30,
             "ListenIP": "0.0.0.0",
             "SendIP": "0.0.0.0",
-            "DeviceOnlineMinTraffic": 100,
+            "DeviceOnlineMinTraffic": 1000,
             "EnableProxyProtocol": false,
             "EnableUot": true,
             "EnableTFO": true,
@@ -496,7 +503,7 @@ EOF
             "Timeout": 30,
             "ListenIP": "$listen_ip",
             "SendIP": "0.0.0.0",
-            "DeviceOnlineMinTraffic": 100,
+            "DeviceOnlineMinTraffic": 1000,
             "TCPFastOpen": true,
             "SniffEnabled": true,
             "EnableDNS": true,
@@ -527,7 +534,7 @@ EOF
             "Timeout": 30,
             "ListenIP": "",
             "SendIP": "0.0.0.0",
-            "DeviceOnlineMinTraffic": 100,
+            "DeviceOnlineMinTraffic": 1000,
             "CertConfig": {
                 "CertMode": "$certmode",
                 "RejectUnknownSni": false,
@@ -693,22 +700,7 @@ EOF
                 "type": "field",
                 "outboundTag": "block",
                 "ip": [
-                    "geoip:private",
-                    "geoip:cn"
-                ]
-            },
-            {
-                "domain": [
-                    "geosite:google"
-                ],
-                "outboundTag": "IPv4_out",
-                "type": "field"
-            },
-            {
-                "type": "field",
-                "outboundTag": "block",
-                "domain": [
-                    "geosite:cn"
+                    "geoip:private"
                 ]
             },
             {
@@ -778,27 +770,7 @@ EOF
   "route": {
     "rules": [
       {
-        "outbound": "block",
-        "geoip": [
-          "private"
-        ]
-      },
-      {
-        "geosite": [
-          "google"
-        ],
-        "outbound": "direct"
-      },
-      {
-        "geosite": [
-          "cn"
-        ],
-        "outbound": "block"
-      },
-      {
-        "geoip": [
-          "cn"
-        ],
+        "ip_is_private": true,
         "outbound": "block"
       },
       {
@@ -835,6 +807,11 @@ EOF
         ]
       }
     ]
+  },
+  "experimental": {
+    "cache_file": {
+      "enabled": true
+    }
   }
 }
 EOF
@@ -856,6 +833,7 @@ resolver:
   type: system
 acl:
   inline:
+    - direct(geosite:google)
     - reject(geosite:cn)
     - reject(geoip:cn)
 masquerade:

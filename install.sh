@@ -28,11 +28,13 @@ elif cat /proc/version | grep -Eqi "ubuntu"; then
     release="ubuntu"
 elif cat /proc/version | grep -Eqi "centos|red hat|redhat|rocky|alma|oracle linux"; then
     release="centos"
+elif cat /proc/version | grep -Eqi "arch"; then
+    release="arch"
 else
     echo -e "${red}未检测到系统版本，请联系脚本作者！${plain}\n" && exit 1
 fi
 
-arch=$(arch)
+arch=$(uname -m)
 
 if [[ $arch == "x86_64" || $arch == "x64" || $arch == "amd64" ]]; then
     arch="64"
@@ -83,11 +85,20 @@ install_base() {
         yum install wget curl unzip tar crontabs socat -y
         yum install ca-certificates wget -y
         update-ca-trust force-enable
-    else
+    elif [[ x"${release}" == x"debian" ]]; then
         apt-get update -y
         apt install wget curl unzip tar cron socat -y
         apt-get install ca-certificates wget -y
         update-ca-certificates
+    elif [[ x"${release}" == x"ubuntu" ]]; then
+        apt-get update -y
+        apt install wget curl unzip tar cron socat -y
+        apt-get install ca-certificates wget -y
+        update-ca-certificates
+    elif [[ x"${release}" == x"arch" ]]; then
+        pacman -Sy
+        pacman -S --noconfirm --needed wget curl unzip tar cron socat
+        pacman -S --noconfirm --needed ca-certificates wget
     fi
 }
 
@@ -153,7 +164,7 @@ install_V2bX() {
     if [[ ! -f /etc/V2bX/config.json ]]; then
         cp config.json /etc/V2bX/
         echo -e ""
-        echo -e "全新安装，请先参看教程：https://github.com/wyx2685/V2bX/tree/master/example，配置必要的内容"
+        echo -e "全新安装，请先参看教程：https://v2bx.v-50.me/，配置必要的内容"
         first_install=true
     else
         systemctl start V2bX
